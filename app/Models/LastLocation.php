@@ -12,10 +12,21 @@ class LastLocation extends Model
 
     protected $table = 'last_locations';
 
-    protected $fillable = ['user_id','latitude','longitude'];
+    protected $fillable = [
+        'user_id',
+        'latitude',
+        'longitude',
+        'precision',
+        'velocidad',
+        'registrado_en',
+    ];
+
     protected $casts = [
         'latitude'  => 'float',
         'longitude' => 'float',
+        'precision' => 'float',
+        'velocidad' => 'float',
+        'registrado_en' => 'datetime',
     ];
 
     public function user(): BelongsTo
