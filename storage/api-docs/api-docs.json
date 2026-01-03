@@ -1,0 +1,400 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Tracking API",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/api"
+        }
+    ],
+    "paths": {
+        "/locations": {
+            "post": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Registrar una ubicación (solo lat/lng por ahora)",
+                "operationId": "4773ed6438ec4dc2bb3c7ff59bb9bef8",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "latitude",
+                                    "longitude"
+                                ],
+                                "properties": {
+                                    "latitude": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -12.046374
+                                    },
+                                    "longitude": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -77.042793
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Ubicación registrada"
+                    },
+                    "422": {
+                        "description": "Validación"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/locations/bulk": {
+            "post": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Registrar ubicaciones en lote (solo lat/lng por ahora)",
+                "operationId": "da5a852d74837d6c9024ccfa97f95c0a",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "items"
+                                ],
+                                "properties": {
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "latitude",
+                                                "longitude"
+                                            ],
+                                            "properties": {
+                                                "latitude": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": -12.046374
+                                                },
+                                                "longitude": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": -77.042793
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Lote insertado"
+                    },
+                    "422": {
+                        "description": "Validación"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/me/last-location": {
+            "get": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Última ubicación del usuario autenticado",
+                "operationId": "cf436f19e18839ba7afb251125aa02c4",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "No data"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/users/{id}/last-location": {
+            "get": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Última ubicación por usuario (para panel web)",
+                "operationId": "51cb2486bcc594bdc85a9c9274c9a610",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "No data"
+                    },
+                    "422": {
+                        "description": "Validación"
+                    },
+                    "500": {
+                        "description": "Error interno"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/users/{id}/locations": {
+            "get": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Histórico de ubicaciones paginado",
+                "operationId": "0e8f87e1663a2306d9f3448170e6b5b9",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "422": {
+                        "description": "Validación"
+                    },
+                    "500": {
+                        "description": "Error interno"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/locations/last": {
+            "get": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Última ubicación de todos los usuarios (para dashboard tiempo real)",
+                "operationId": "9d0637b47f8977e498f9797f1ccbe10f",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "500": {
+                        "description": "Error interno"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/register": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Registro de usuario",
+                "operationId": "d79ac57d52a31589e5ecdaa73c3a950c",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Ander Code"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "example": "ander@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "Secret123!"
+                                    },
+                                    "device": {
+                                        "type": "string",
+                                        "example": "Xiaomi Redmi"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Registrado"
+                    },
+                    "422": {
+                        "description": "Validación"
+                    }
+                }
+            }
+        },
+        "/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Login de usuario",
+                "operationId": "eb4a9d12f4bb474018dd941fe27d2810",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "example": "ander@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "Secret123!"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Autenticado"
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas"
+                    }
+                }
+            }
+        },
+        "/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Cerrar sesión (revoca el token actual)",
+                "operationId": "91a5bdd6711bc04e24cbcbe64b0b36bb",
+                "responses": {
+                    "200": {
+                        "description": "Token revocado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "bearerFormat": "Token",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Endpoints de autenticación"
+        },
+        {
+            "name": "Locations",
+            "description": "Locations"
+        }
+    ]
+}
