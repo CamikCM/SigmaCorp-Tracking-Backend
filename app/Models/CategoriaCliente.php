@@ -17,9 +17,9 @@ class CategoriaCliente extends Model
         'descripcion',
     ];
 
-/*    public function clientes(): HasMany
+    public function clientes(): HasMany
     {
         return $this->hasMany(Cliente::class, 'categoria_id');
     }
-*/
+
 }
