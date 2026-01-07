@@ -24,7 +24,7 @@ class MuestraMedica extends Model
     ];
 
     // Relaciones (se activan cuando existan estos modelos)
-/*
+
     public function inventariosSucursales(): HasMany
     {
         return $this->hasMany(InventarioSucursalMuestra::class, 'muestra_medica_id');
@@ -39,5 +39,5 @@ class MuestraMedica extends Model
     {
         return $this->hasMany(OperacionItem::class, 'muestra_medica_id');
     }
-*/
+
 }

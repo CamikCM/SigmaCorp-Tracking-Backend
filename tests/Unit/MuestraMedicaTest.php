@@ -73,7 +73,7 @@ class MuestraMedicaTest extends TestCase
         ]);
     }
 
-/*    public function test_relaciones_existen_y_funcionan_si_los_modelos_dependientes_ya_existen(): void
+    public function test_relaciones_existen_y_funcionan_si_los_modelos_dependientes_ya_existen(): void
     {
         // Si todavía no creaste estos modelos, este test se salta sin fallar.
         $dependencias = [
@@ -94,5 +94,5 @@ class MuestraMedicaTest extends TestCase
         $this->assertNotNull($muestra->inventariosVisitadores());
         $this->assertNotNull($muestra->operacionesItems());
     }
-*/
+
 }
