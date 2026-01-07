@@ -37,7 +37,7 @@ class Cliente extends Model
     {
         return $this->belongsTo(CategoriaCliente::class, 'categoria_id');
     }
-/*
+
     public function visitas(): HasMany
     {
         return $this->hasMany(Visita::class, 'cliente_id');
@@ -50,6 +50,6 @@ class Cliente extends Model
             ->withPivot('orden')
             ->withTimestamps();
     }
-*/
+
 }
 

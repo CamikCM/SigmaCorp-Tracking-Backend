@@ -43,12 +43,12 @@ class Jornada extends Model
         return $this->belongsTo(User::class, 'usuario_id');
     }
 
-/*    public function visitas(): HasMany
+    public function visitas(): HasMany
     {
         // Evita error si Visita aún no existe
         return $this->hasMany('App\\Models\\Visita', 'jornada_id');
     }
-*/
+
     public function locations(): HasMany
     {
         return $this->hasMany(Location::class, 'jornada_id');

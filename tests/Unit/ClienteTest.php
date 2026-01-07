@@ -84,14 +84,14 @@ class ClienteTest extends TestCase
         $cliente = Cliente::factory()->create();
 
         // Evita fallas si aún no creaste Ruta/Visita en tu proyecto.
-    /*    if (class_exists(\App\Models\Visita::class)) {
+        if (class_exists(\App\Models\Visita::class)) {
             $this->assertTrue(method_exists($cliente, 'visitas'));
         }
 
         if (class_exists(\App\Models\Ruta::class)) {
             $this->assertTrue(method_exists($cliente, 'rutas'));
         }
-*/
+
         $this->assertTrue(method_exists($cliente, 'categoria'));
     }
 }
