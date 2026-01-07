@@ -70,14 +70,14 @@ class CategoriaClienteTest extends TestCase
         // debe fallar por unique
         CategoriaCliente::create(['nombre' => 'VIP', 'descripcion' => 'duplicado']);
     }
-/*
+
     public function test_relacion_clientes_es_hasMany(): void
     {
         $cat = CategoriaCliente::factory()->create();
 
         $this->assertInstanceOf(HasMany::class, $cat->clientes());
     }
-*/
+
     public function test_nombre_es_obligatorio_a_nivel_bd(): void
     {
         $this->expectException(QueryException::class);
@@ -88,7 +88,7 @@ class CategoriaClienteTest extends TestCase
         ]);
     }
 
-/*    public function test_relacion_clientes_devuelve_registros(): void
+    public function test_relacion_clientes_devuelve_registros(): void
     {
         $cat = CategoriaCliente::factory()->create();
 
@@ -100,5 +100,5 @@ class CategoriaClienteTest extends TestCase
 
         $this->assertCount(2, $cat->clientes);
     }
-*/
+
 }
