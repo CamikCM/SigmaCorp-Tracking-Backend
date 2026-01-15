@@ -2,54 +2,65 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
-use App\Providers\RouteServiceProvider;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\Fluent\AssertableJson;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_screen_can_be_rendered(): void
+    public function test_api_login_returns_token(): void
     {
-        $response = $this->get('/login');
-
-        $response->assertStatus(200);
-    }
-
-    public function test_users_can_authenticate_using_the_login_screen(): void
-    {
-        $user = User::factory()->create();
-
-        $response = $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
+        $user = Usuario::factory()->create([
+            'password' => bcrypt('secret123'),
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(RouteServiceProvider::HOME);
-    }
-
-    public function test_users_can_not_authenticate_with_invalid_password(): void
-    {
-        $user = User::factory()->create();
-
-        $this->post('/login', [
+        $response = $this->postJson('/api/login', [
             'email' => $user->email,
-            'password' => 'wrong-password',
+            'password' => 'secret123',
         ]);
 
-        $this->assertGuest();
+        $response
+            ->assertOk()
+            ->assertJson(fn (AssertableJson $json) =>
+                $json->hasAll(['message', 'token'])
+                    ->has('user', fn (AssertableJson $u) =>
+                        $u->hasAll(['id', 'name', 'email'])
+                    )
+            );
     }
 
-    public function test_users_can_logout(): void
+    public function test_api_login_fails_with_invalid_credentials(): void
     {
-        $user = User::factory()->create();
+        $user = Usuario::factory()->create([
+            'password' => bcrypt('secret123'),
+        ]);
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'wrong-pass',
+        ]);
 
-        $this->assertGuest();
-        $response->assertRedirect('/');
+        $response
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_api_logout_revokes_current_token(): void
+    {
+        $user = Usuario::factory()->create();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/logout');
+
+        $response
+            ->assertOk()
+            ->assertJson([
+                'message' => 'Logout correcto',
+            ]);
     }
 }
