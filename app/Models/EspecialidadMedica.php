@@ -6,16 +6,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class CategoriaCliente extends Model
+class EspecialidadMedica extends Model
 {
     use HasFactory;
 
-    protected $table = 'categorias_clientes';
+    protected $table = 'especialidades_medicas';
 
     protected $fillable = ['nombre', 'descripcion'];
 
     public function clientes(): HasMany
     {
-        return $this->hasMany(Cliente::class, 'categoria_id');
+        return $this->hasMany(Cliente::class, 'especialidad_id');
     }
 }

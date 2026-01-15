@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cliente extends Model
 {
@@ -15,41 +15,53 @@ class Cliente extends Model
     protected $table = 'clientes';
 
     protected $fillable = [
+        'persona_id',
         'codigo',
-        'abreviatura',
-        'nombre',
-        'especialidad',
-        'descripcion',
-        'direccion',
-        'latitud',
-        'longitud',
+        'tipo_cliente',
         'categoria_id',
+        'sucursal_id',
+        'especialidad_id',
         'activo',
     ];
 
     protected $casts = [
-        'latitud' => 'float',
-        'longitud' => 'float',
         'activo' => 'boolean',
     ];
+
+    public function persona(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
 
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(CategoriaCliente::class, 'categoria_id');
     }
 
-    public function visitas(): HasMany
+    public function sucursal(): BelongsTo
     {
-        return $this->hasMany(Visita::class, 'cliente_id');
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function especialidad(): BelongsTo
+    {
+        return $this->belongsTo(EspecialidadMedica::class, 'especialidad_id');
     }
 
     public function rutas(): BelongsToMany
     {
-        // Pivot: ruta_clientes (cliente_id, ruta_id, orden)
         return $this->belongsToMany(Ruta::class, 'ruta_clientes', 'cliente_id', 'ruta_id')
-            ->withPivot('orden')
+            ->withPivot(['orden'])
             ->withTimestamps();
     }
 
-}
+    public function rutasPivot(): HasMany
+    {
+        return $this->hasMany(RutaCliente::class, 'cliente_id');
+    }
 
+    public function visitas(): HasMany
+    {
+        return $this->hasMany(Visita::class, 'cliente_id');
+    }
+}

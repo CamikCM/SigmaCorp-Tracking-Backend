@@ -13,24 +13,20 @@ class LastLocation extends Model
     protected $table = 'last_locations';
 
     protected $fillable = [
-        'user_id',
+        'visitador_medico_id',
         'latitude',
         'longitude',
-        'precision',
-        'velocidad',
-        'registrado_en',
+        'recorded_at',
     ];
 
     protected $casts = [
-        'latitude'  => 'float',
+        'latitude' => 'float',
         'longitude' => 'float',
-        'precision' => 'float',
-        'velocidad' => 'float',
-        'registrado_en' => 'datetime',
+        'recorded_at' => 'datetime',
     ];
 
-    public function user(): BelongsTo
+    public function visitadorMedico(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(VisitadorMedico::class, 'visitador_medico_id');
     }
 }

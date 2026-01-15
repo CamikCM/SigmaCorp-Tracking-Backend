@@ -12,27 +12,17 @@ class AsignacionRuta extends Model
 
     protected $table = 'asignaciones_rutas';
 
-    protected $fillable = [
-        'ruta_id',
-        'usuario_id',
-        'fecha_inicio',
-        'fecha_fin',
-        'activa',
-    ];
+    protected $fillable = ['ruta_id','visitador_medico_id','activo'];
 
-    protected $casts = [
-        'fecha_inicio' => 'date',
-        'fecha_fin' => 'date',
-        'activa' => 'boolean',
-    ];
+    protected $casts = ['activo' => 'boolean'];
 
     public function ruta(): BelongsTo
     {
         return $this->belongsTo(Ruta::class, 'ruta_id');
     }
 
-    public function usuario(): BelongsTo
+    public function visitadorMedico(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'usuario_id');
+        return $this->belongsTo(VisitadorMedico::class, 'visitador_medico_id');
     }
 }

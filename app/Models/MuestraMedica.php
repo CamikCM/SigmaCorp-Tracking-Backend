@@ -12,25 +12,14 @@ class MuestraMedica extends Model
 
     protected $table = 'muestras_medicas';
 
-    protected $fillable = [
-        'nombre',
-        'tipo',
-        'descripcion',
-        'activa',
-    ];
+    protected $fillable = ['nombre','descripcion'];
 
-    protected $casts = [
-        'activa' => 'boolean',
-    ];
-
-    // Relaciones (se activan cuando existan estos modelos)
-
-    public function inventariosSucursales(): HasMany
+    public function inventarioSucursales(): HasMany
     {
         return $this->hasMany(InventarioSucursalMuestra::class, 'muestra_medica_id');
     }
 
-    public function inventariosVisitadores(): HasMany
+    public function inventarioVisitadores(): HasMany
     {
         return $this->hasMany(InventarioVisitadorMuestra::class, 'muestra_medica_id');
     }
@@ -39,5 +28,4 @@ class MuestraMedica extends Model
     {
         return $this->hasMany(OperacionItem::class, 'muestra_medica_id');
     }
-
 }

@@ -18,8 +18,33 @@ class Sucursal extends Model
         'direccion',
     ];
 
-    public function usuarios(): HasMany
+    public function visitadoresMedicos(): HasMany
     {
-        return $this->hasMany(User::class, 'sucursal_id');
+        return $this->hasMany(VisitadorMedico::class, 'sucursal_id');
+    }
+
+    public function supervisores(): HasMany
+    {
+        return $this->hasMany(Supervisor::class, 'sucursal_id');
+    }
+
+    public function clientes(): HasMany
+    {
+        return $this->hasMany(Cliente::class, 'sucursal_id');
+    }
+
+    public function rutas(): HasMany
+    {
+        return $this->hasMany(Ruta::class, 'sucursal_id');
+    }
+
+    public function inventariosMuestras(): HasMany
+    {
+        return $this->hasMany(InventarioSucursalMuestra::class, 'sucursal_id');
+    }
+
+    public function operaciones(): HasMany
+    {
+        return $this->hasMany(Operacion::class, 'sucursal_id');
     }
 }

@@ -12,19 +12,13 @@ class InventarioVisitadorMuestra extends Model
 
     protected $table = 'inventarios_visitadores_muestras';
 
-    protected $fillable = [
-        'usuario_id',
-        'muestra_medica_id',
-        'cantidad',
-    ];
+    protected $fillable = ['visitador_medico_id','muestra_medica_id','cantidad'];
 
-    protected $casts = [
-        'cantidad' => 'integer',
-    ];
+    protected $casts = ['cantidad' => 'integer'];
 
-    public function usuario(): BelongsTo
+    public function visitadorMedico(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'usuario_id');
+        return $this->belongsTo(VisitadorMedico::class, 'visitador_medico_id');
     }
 
     public function muestraMedica(): BelongsTo

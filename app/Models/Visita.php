@@ -13,27 +13,24 @@ class Visita extends Model
     protected $table = 'visitas';
 
     protected $fillable = [
-        'usuario_id',
+        'visitador_medico_id',
         'cliente_id',
         'jornada_id',
-        'ruta_id',
-        'check_in',
-        'check_out',
+        'fecha',
         'latitud',
         'longitud',
-        'notas',
+        'observaciones',
     ];
 
     protected $casts = [
-        'check_in' => 'datetime',
-        'check_out' => 'datetime',
+        'fecha' => 'datetime',
         'latitud' => 'float',
         'longitud' => 'float',
     ];
 
-    public function usuario(): BelongsTo
+    public function visitadorMedico(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'usuario_id');
+        return $this->belongsTo(VisitadorMedico::class, 'visitador_medico_id');
     }
 
     public function cliente(): BelongsTo
@@ -44,10 +41,5 @@ class Visita extends Model
     public function jornada(): BelongsTo
     {
         return $this->belongsTo(Jornada::class, 'jornada_id');
-    }
-
-    public function ruta(): BelongsTo
-    {
-        return $this->belongsTo(Ruta::class, 'ruta_id');
     }
 }

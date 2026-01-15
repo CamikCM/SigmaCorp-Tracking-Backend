@@ -6,33 +6,24 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Location extends Model
+class VisitadorEstadoTracking extends Model
 {
     use HasFactory;
 
-    protected $table = 'locations';
+    protected $table = 'visitador_estado_tracking';
 
     protected $fillable = [
         'visitador_medico_id',
         'jornada_id',
-        'latitude',
-        'longitude',
-        'accuracy',
-        'speed',
-        'heading',
-        'altitude',
-        'provider',
-        'recorded_at',
+        'estado_user_id',
+        'tipo_marcado',
+        'fuente',
+        'marcado_en',
+        'nota',
     ];
 
     protected $casts = [
-        'latitude' => 'float',
-        'longitude' => 'float',
-        'accuracy' => 'float',
-        'speed' => 'float',
-        'heading' => 'float',
-        'altitude' => 'float',
-        'recorded_at' => 'datetime',
+        'marcado_en' => 'datetime',
     ];
 
     public function visitadorMedico(): BelongsTo
@@ -43,5 +34,10 @@ class Location extends Model
     public function jornada(): BelongsTo
     {
         return $this->belongsTo(Jornada::class, 'jornada_id');
+    }
+
+    public function estadoUser(): BelongsTo
+    {
+        return $this->belongsTo(EstadoUser::class, 'estado_user_id');
     }
 }

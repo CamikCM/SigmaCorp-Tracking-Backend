@@ -14,34 +14,32 @@ class Operacion extends Model
     protected $table = 'operaciones';
 
     protected $fillable = [
-        'fecha_registro',
         'tipo',
-        'comprobante',
+        'estado',
+        'fecha',
+        'emite_persona_id',
+        'recibe_visitador_medico_id',
         'sucursal_id',
-        'entrega_usuario_id',
-        'recibe_usuario_id',
-        'total_unidades',
-        'observacion',
+        'observaciones',
     ];
 
     protected $casts = [
-        'fecha_registro' => 'datetime',
-        'total_unidades' => 'integer',
+        'fecha' => 'datetime',
     ];
+
+    public function emitePersona(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'emite_persona_id');
+    }
+
+    public function recibeVisitadorMedico(): BelongsTo
+    {
+        return $this->belongsTo(VisitadorMedico::class, 'recibe_visitador_medico_id');
+    }
 
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
-    }
-
-    public function entregaUsuario(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'entrega_usuario_id');
-    }
-
-    public function recibeUsuario(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'recibe_usuario_id');
     }
 
     public function items(): HasMany

@@ -12,15 +12,9 @@ class OperacionItem extends Model
 
     protected $table = 'operaciones_items';
 
-    protected $fillable = [
-        'operacion_id',
-        'muestra_medica_id',
-        'cantidad',
-    ];
+    protected $fillable = ['operacion_id','muestra_medica_id','cantidad'];
 
-    protected $casts = [
-        'cantidad' => 'integer',
-    ];
+    protected $casts = ['cantidad' => 'integer'];
 
     public function operacion(): BelongsTo
     {

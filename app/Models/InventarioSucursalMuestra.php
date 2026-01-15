@@ -12,15 +12,9 @@ class InventarioSucursalMuestra extends Model
 
     protected $table = 'inventarios_sucursales_muestras';
 
-    protected $fillable = [
-        'sucursal_id',
-        'muestra_medica_id',
-        'cantidad',
-    ];
+    protected $fillable = ['sucursal_id','muestra_medica_id','cantidad'];
 
-    protected $casts = [
-        'cantidad' => 'integer',
-    ];
+    protected $casts = ['cantidad' => 'integer'];
 
     public function sucursal(): BelongsTo
     {

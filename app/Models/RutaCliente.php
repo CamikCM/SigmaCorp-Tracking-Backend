@@ -12,15 +12,9 @@ class RutaCliente extends Model
 
     protected $table = 'ruta_clientes';
 
-    protected $fillable = [
-        'ruta_id',
-        'cliente_id',
-        'orden',
-    ];
+    protected $fillable = ['ruta_id','cliente_id','orden'];
 
-    protected $casts = [
-        'orden' => 'integer',
-    ];
+    protected $casts = ['orden' => 'integer'];
 
     public function ruta(): BelongsTo
     {
