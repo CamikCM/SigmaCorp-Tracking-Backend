@@ -1,30 +1,40 @@
 <?php
 
+use App\Models\Usuario;
+
 return [
     'shield_resource' => [
         'should_register_navigation' => true,
         'slug' => 'shield/roles',
+
         'navigation_sort' => -1,
         'navigation_badge' => true,
-        'navigation_group' => true,
+
+        // Ponlo como texto (mejor que boolean)
+        'navigation_group' => 'Seguridad',
+
         'sub_navigation_position' => null,
         'is_globally_searchable' => false,
         'show_model_path' => true,
-        'is_scoped_to_tenant' => true,
+
+        // ✅ No tienes tenancy, déjalo en false
+        'is_scoped_to_tenant' => false,
+
         'cluster' => null,
     ],
 
     'tenant_model' => null,
 
+    // ✅ Tu modelo real del proyecto tracking
     'auth_provider_model' => [
-        'fqcn' => 'App\\Models\\User',
+        'fqcn' => Usuario::class,
     ],
 
     'super_admin' => [
         'enabled' => true,
         'name' => 'super_admin',
         'define_via_gate' => false,
-        'intercept_gate' => 'before', // after
+        'intercept_gate' => 'before',
     ],
 
     'panel_user' => [
@@ -47,7 +57,6 @@ return [
             'force_delete',
             'force_delete_any',
         ],
-
         'page' => 'page',
         'widget' => 'widget',
     ],
@@ -56,7 +65,15 @@ return [
         'pages' => true,
         'widgets' => true,
         'resources' => true,
-        'custom_permissions' => false,
+
+        // ✅ Activa permisos custom para acceso a paneles
+        'custom_permissions' => true,
+    ],
+
+    // ✅ Aquí van tus permisos custom (los que tú usabas en otros proyectos)
+    'custom_permissions' => [
+        'access_informatica_panel' => 'Acceso al panel Informática',
+        'access_supervisor_panel' => 'Acceso al panel Supervisor',
     ],
 
     'generator' => [
@@ -67,26 +84,24 @@ return [
 
     'exclude' => [
         'enabled' => true,
-
         'pages' => [
             'Dashboard',
         ],
-
         'widgets' => [
-            'AccountWidget', 'FilamentInfoWidget',
+            'AccountWidget',
+            'FilamentInfoWidget',
         ],
-
         'resources' => [],
     ],
 
+    // ✅ Para multi-panel, ponlo en true (si no, shield solo “ve” parte del panel default)
     'discovery' => [
-        'discover_all_resources' => false,
-        'discover_all_widgets' => false,
-        'discover_all_pages' => false,
+        'discover_all_resources' => true,
+        'discover_all_widgets' => true,
+        'discover_all_pages' => true,
     ],
 
     'register_role_policy' => [
         'enabled' => true,
     ],
-
 ];
