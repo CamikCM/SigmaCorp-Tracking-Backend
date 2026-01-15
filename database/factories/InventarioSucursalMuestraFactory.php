@@ -3,13 +3,10 @@
 namespace Database\Factories;
 
 use App\Models\InventarioSucursalMuestra;
-use App\Models\Sucursal;
 use App\Models\MuestraMedica;
+use App\Models\Sucursal;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\InventarioSucursalMuestra>
- */
 class InventarioSucursalMuestraFactory extends Factory
 {
     protected $model = InventarioSucursalMuestra::class;
@@ -19,7 +16,7 @@ class InventarioSucursalMuestraFactory extends Factory
         return [
             'sucursal_id' => Sucursal::factory(),
             'muestra_medica_id' => MuestraMedica::factory(),
-            'cantidad' => fake()->numberBetween(0, 500),
+            'cantidad' => $this->faker->numberBetween(0, 500),
         ];
     }
 }

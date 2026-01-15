@@ -7,9 +7,6 @@ use App\Models\Operacion;
 use App\Models\OperacionItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\OperacionItem>
- */
 class OperacionItemFactory extends Factory
 {
     protected $model = OperacionItem::class;
@@ -19,7 +16,7 @@ class OperacionItemFactory extends Factory
         return [
             'operacion_id' => Operacion::factory(),
             'muestra_medica_id' => MuestraMedica::factory(),
-            'cantidad' => fake()->numberBetween(1, 100),
+            'cantidad' => $this->faker->numberBetween(1, 50),
         ];
     }
 }

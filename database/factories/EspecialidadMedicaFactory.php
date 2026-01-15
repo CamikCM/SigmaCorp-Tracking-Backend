@@ -2,19 +2,17 @@
 
 namespace Database\Factories;
 
-use App\Models\Ruta;
-use App\Models\Sucursal;
+use App\Models\EspecialidadMedica;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-class RutaFactory extends Factory
+class EspecialidadMedicaFactory extends Factory
 {
-    protected $model = Ruta::class;
+    protected $model = EspecialidadMedica::class;
 
     public function definition(): array
     {
         return [
-            'sucursal_id' => Sucursal::factory(),
-            'nombre' => 'Ruta '.$this->faker->unique()->city(),
+            'nombre' => ucfirst($this->faker->unique()->word()),
             'descripcion' => $this->faker->optional()->sentence(),
         ];
     }

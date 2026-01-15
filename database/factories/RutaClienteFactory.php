@@ -2,14 +2,11 @@
 
 namespace Database\Factories;
 
-use App\Models\Ruta;
 use App\Models\Cliente;
+use App\Models\Ruta;
 use App\Models\RutaCliente;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<RutaCliente>
- */
 class RutaClienteFactory extends Factory
 {
     protected $model = RutaCliente::class;

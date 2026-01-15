@@ -2,35 +2,26 @@
 
 namespace Database\Factories;
 
-use App\Models\Cliente;
 use App\Models\CategoriaCliente;
+use App\Models\Cliente;
+use App\Models\EspecialidadMedica;
+use App\Models\Persona;
+use App\Models\Sucursal;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Cliente>
- */
 class ClienteFactory extends Factory
 {
     protected $model = Cliente::class;
 
     public function definition(): array
     {
-        $codigos = [null, 'AA', 'AAA', 'A', 'B'];
-
         return [
-            'codigo' => fake()->randomElement($codigos),
-            'abreviatura' => fake()->optional()->lexify('???'),
-            'nombre' => fake()->name(),
-            'especialidad' => fake()->optional()->randomElement([
-                'Medicina General', 'Pediatría', 'Cardiología', 'Farmacia'
-            ]),
-            'descripcion' => fake()->optional()->sentence(),
-            'direccion' => fake()->optional()->address(),
-
-            'latitud' => fake()->optional()->latitude(-19.2, -17.0),
-            'longitud' => fake()->optional()->longitude(-66.0, -64.0),
-
+            'persona_id' => Persona::factory(),
+            'codigo' => $this->faker->unique()->bothify('C-####'),
+            'tipo_cliente' => $this->faker->randomElement(['MEDICO', 'FARMACIA', 'INSTITUCION']),
             'categoria_id' => CategoriaCliente::factory(),
+            'sucursal_id' => Sucursal::factory(),
+            'especialidad_id' => EspecialidadMedica::factory(),
             'activo' => true,
         ];
     }

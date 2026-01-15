@@ -5,9 +5,6 @@ namespace Database\Factories;
 use App\Models\Sucursal;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Sucursal>
- */
 class SucursalFactory extends Factory
 {
     protected $model = Sucursal::class;
@@ -15,9 +12,9 @@ class SucursalFactory extends Factory
     public function definition(): array
     {
         return [
-            'nombre' => 'Sigma ' . fake()->city(),
-            'ciudad' => fake()->city(),
-            'direccion' => fake()->address(),
+            'nombre' => $this->faker->company().' - '.$this->faker->citySuffix(),
+            'ciudad' => $this->faker->city(),
+            'direccion' => $this->faker->address(),
         ];
     }
 }

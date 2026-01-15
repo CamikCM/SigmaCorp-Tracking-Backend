@@ -3,13 +3,11 @@
 namespace Database\Factories;
 
 use App\Models\Operacion;
+use App\Models\Persona;
 use App\Models\Sucursal;
-use App\Models\User;
+use App\Models\VisitadorMedico;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Operacion>
- */
 class OperacionFactory extends Factory
 {
     protected $model = Operacion::class;
@@ -17,24 +15,13 @@ class OperacionFactory extends Factory
     public function definition(): array
     {
         return [
-            'fecha_registro' => fake()->dateTimeBetween('-7 days', 'now'),
-            'tipo' => fake()->randomElement(['entrega', 'devolucion', 'ajuste']),
-            'comprobante' => fake()->optional()->bothify('COMP-####-??'),
-            'sucursal_id' => Sucursal::factory(),
-            'entrega_usuario_id' => User::factory(),
-            'recibe_usuario_id' => User::factory(),
-            'total_unidades' => fake()->numberBetween(0, 200),
-            'observacion' => fake()->optional()->sentence(),
+            'tipo' => $this->faker->randomElement(['ENTREGA', 'DEVOLUCION', 'AJUSTE']),
+            'estado' => $this->faker->randomElement(['PENDIENTE', 'CONFIRMADA', 'ANULADA']),
+            'fecha' => $this->faker->dateTimeBetween('-30 days', 'now'),
+            'emite_persona_id' => Persona::factory(),
+            'recibe_visitador_medico_id' => $this->faker->boolean(70) ? VisitadorMedico::factory() : null,
+            'sucursal_id' => $this->faker->boolean(70) ? Sucursal::factory() : null,
+            'observaciones' => $this->faker->optional()->sentence(),
         ];
-    }
-
-    public function sinEntrega(): static
-    {
-        return $this->state(fn () => ['entrega_usuario_id' => null]);
-    }
-
-    public function sinRecibe(): static
-    {
-        return $this->state(fn () => ['recibe_usuario_id' => null]);
     }
 }

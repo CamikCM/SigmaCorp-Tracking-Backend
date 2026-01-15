@@ -4,12 +4,9 @@ namespace Database\Factories;
 
 use App\Models\InventarioVisitadorMuestra;
 use App\Models\MuestraMedica;
-use App\Models\User;
+use App\Models\VisitadorMedico;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\InventarioVisitadorMuestra>
- */
 class InventarioVisitadorMuestraFactory extends Factory
 {
     protected $model = InventarioVisitadorMuestra::class;
@@ -17,9 +14,9 @@ class InventarioVisitadorMuestraFactory extends Factory
     public function definition(): array
     {
         return [
-            'usuario_id' => User::factory(),
+            'visitador_medico_id' => VisitadorMedico::factory(),
             'muestra_medica_id' => MuestraMedica::factory(),
-            'cantidad' => $this->faker->numberBetween(0, 50),
+            'cantidad' => $this->faker->numberBetween(0, 200),
         ];
     }
 }
