@@ -3,126 +3,126 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Persona;
+use App\Models\Usuario;
+use App\Models\VisitadorMedico;
+use App\Models\EstadoUser;
 use Illuminate\Http\Request;
-
-use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
-/**
- * @OA\Info(title="Tracking API", version="1.0.0")
- * @OA\Server(url="/api")
- * @OA\SecurityScheme(
- *     securityScheme="sanctum",
- *     type="http",
- *     scheme="bearer",
- *     bearerFormat="Token"
- * )
- * @OA\Tag(
- *     name="Auth",
- *     description="Endpoints de autenticación"
- * )
- */
 class UserController extends Controller
 {
-    /**
-     * @OA\Post(
-     *   path="/register",
-     *   tags={"Auth"},
-     *   summary="Registro de usuario",
-     *   @OA\RequestBody(
-     *     required=true,
-     *     @OA\JsonContent(
-     *       required={"name","email","password"},
-     *       @OA\Property(property="name", type="string", example="Ander Code"),
-     *       @OA\Property(property="email", type="string", example="ander@example.com"),
-     *       @OA\Property(property="password", type="string", example="Secret123!"),
-     *       @OA\Property(property="device", type="string", example="Xiaomi Redmi")
-     *     )
-     *   ),
-     *   @OA\Response(response=201, description="Registrado"),
-     *   @OA\Response(response=422, description="Validación")
-     * )
-     */
     public function register(Request $request)
     {
         $data = $request->validate([
-            'name'     => ['required','string','max:255'],
-            'email'    => ['required','email','max:255','unique:users,email'],
-            'password' => ['required', Password::min(8)],
-            'device'   => ['nullable','string','max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:6'],
+            'device' => ['nullable', 'string', 'max:255'],
+
+            // opcional: si registras desde la app móvil
+            'tipo' => ['nullable', 'in:visitador_medico,supervisor'],
+            'sucursal_id' => ['nullable', 'integer'],
         ]);
 
-        $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
+        // Persona mínima (todo nullable excepto habilitado)
+        $persona = Persona::create([
+            'nombre' => $data['name'],
+            'habilitado' => true,
+        ]);
+
+        $user = Usuario::create([
+            'persona_id' => $persona->id,
+            'name' => $data['name'],
+            'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'device'   => $data['device'] ?? null,
+            'device' => $data['device'] ?? null,
+            'is_active' => true,
+            'last_login_at' => now(),
         ]);
 
-        $token = $user->createToken('api')->plainTextToken;
+        // Si el registro viene del móvil, por defecto lo tratamos como visitador
+        $tipo = $data['tipo'] ?? 'visitador_medico';
+
+        if ($tipo === 'visitador_medico') {
+            $sucursalId = $data['sucursal_id'] ?? 1;
+
+            $estadoOff = EstadoUser::query()->where('codigo', 'OFF')->first();
+            if (! $estadoOff) {
+                // Si todavía no existe, no reventamos el registro.
+                $estadoOffId = null;
+            } else {
+                $estadoOffId = $estadoOff->id;
+            }
+
+            // Crea el perfil de visitador si no existe
+            VisitadorMedico::query()->firstOrCreate(
+                ['persona_id' => $persona->id],
+                [
+                    'sucursal_id' => $sucursalId,
+                    'estado_user_id' => $estadoOffId ?? 1,
+                    'activo' => true,
+                ]
+            );
+        }
+
+        // Token Sanctum
+        $tokenName = $data['device'] ?? 'api';
+        $token = $user->createToken($tokenName)->plainTextToken;
 
         return response()->json([
-            'message' => 'Usuario registrado',
-            'user'    => $user,
-            'token'   => $token,
+            'message' => 'Registro correcto',
+            'user' => $user,
+            'token' => $token,
         ], 201);
     }
 
-    /**
-     * @OA\Post(
-     *   path="/login",
-     *   tags={"Auth"},
-     *   summary="Login de usuario",
-     *   @OA\RequestBody(
-     *     required=true,
-     *     @OA\JsonContent(
-     *       required={"email","password"},
-     *       @OA\Property(property="email", type="string", example="ander@example.com"),
-     *       @OA\Property(property="password", type="string", example="Secret123!")
-     *     )
-     *   ),
-     *   @OA\Response(response=200, description="Autenticado"),
-     *   @OA\Response(response=401, description="Credenciales inválidas")
-     * )
-     */
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email'    => ['required','email'],
-            'password' => ['required','string'],
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+            'device' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        $user = Usuario::query()->where('email', $data['email'])->first();
 
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
-            return response()->json(['message' => 'Credenciales inválidas'], 401);
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['Las credenciales no coinciden.'],
+            ]);
         }
 
-        // Opcional: revocar tokens antiguos
-        $user->tokens()->delete();
+        if (! $user->is_active) {
+            return response()->json([
+                'message' => 'Usuario deshabilitado',
+            ], 403);
+        }
 
-        $token = $user->createToken('api')->plainTextToken;
+        // Actualiza auditoría
+        $user->forceFill([
+            'device' => $data['device'] ?? $user->device,
+            'last_login_at' => now(),
+        ])->save();
+
+        // Token
+        $tokenName = $data['device'] ?? 'api';
+        $token = $user->createToken($tokenName)->plainTextToken;
 
         return response()->json([
             'message' => 'Login correcto',
-            'user'    => $user,
-            'token'   => $token,
-        ]);
+            'user' => $user,
+            'token' => $token,
+        ], 200);
     }
 
-    /**
-     * @OA\Post(
-     *   path="/logout",
-     *   tags={"Auth"},
-     *   summary="Cerrar sesión (revoca el token actual)",
-     *   security={{"sanctum":{}}},
-     *   @OA\Response(response=200, description="Token revocado")
-     * )
-     */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Sesión cerrada']);
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->json([
+            'message' => 'Logout correcto',
+        ], 200);
     }
 }

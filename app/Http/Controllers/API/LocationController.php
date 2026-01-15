@@ -3,424 +3,390 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
-use App\Models\Location;
+use App\Models\EstadoUser;
+use App\Models\Jornada;
 use App\Models\LastLocation;
+use App\Models\Location;
+use App\Models\Usuario;
+use App\Models\VisitadorEstadoTracking;
+use App\Models\VisitadorMedico;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Database\QueryException;
-
-use Carbon\Carbon;
 
 class LocationController extends Controller
 {
-    /**
-     * @OA\Post(
-     *   path="/locations",
-     *   tags={"Locations"},
-     *   summary="Registrar una ubicación (solo lat/lng por ahora)",
-     *   security={{"sanctum":{}}},
-     *   @OA\RequestBody(
-     *     required=true,
-     *     @OA\JsonContent(
-     *       required={"latitude","longitude"},
-     *       @OA\Property(property="latitude", type="number", format="float", example=-12.046374),
-     *       @OA\Property(property="longitude", type="number", format="float", example=-77.042793)
-     *     )
-     *   ),
-     *   @OA\Response(response=201, description="Ubicación registrada"),
-     *   @OA\Response(response=422, description="Validación")
-     * )
-     */
-    public function store(Request $request)
+    protected function resolveVisitador(Usuario $user): VisitadorMedico
     {
-        $user = $request->user();
-
-        $data = $request->validate([
-            'latitude'  => ['required','numeric','between:-90,90'],
-            'longitude' => ['required','numeric','between:-180,180'],
-        ]);
-
-        $locationId = null;
-
-        DB::transaction(function () use ($user, $data, &$locationId) {
-            // 1) Guardar en histórico
-            $loc = Location::create([
-                'user_id'   => $user->id,
-                'latitude'  => $data['latitude'],
-                'longitude' => $data['longitude'],
-            ]);
-            $locationId = $loc->id;
-
-            // 2) Upsert en last_locations
-            LastLocation::updateOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'latitude'  => $data['latitude'],
-                    'longitude' => $data['longitude'],
-                ]
-            );
-        });
-
-        return response()->json([
-            'id'                     => $locationId,
-            'saved'                  => true,
-            'last_location_updated'  => true,
-        ], 201);
+        return VisitadorMedico::query()
+            ->where('persona_id', $user->persona_id)
+            ->firstOrFail();
     }
 
-    /**
-     * @OA\Post(
-     *   path="/locations/bulk",
-     *   tags={"Locations"},
-     *   summary="Registrar ubicaciones en lote (solo lat/lng por ahora)",
-     *   security={{"sanctum":{}}},
-     *   @OA\RequestBody(
-     *     required=true,
-     *     @OA\JsonContent(
-     *       required={"items"},
-     *       @OA\Property(
-     *         property="items",
-     *         type="array",
-     *         @OA\Items(
-     *           required={"latitude","longitude"},
-     *           @OA\Property(property="latitude", type="number", format="float", example=-12.046374),
-     *           @OA\Property(property="longitude", type="number", format="float", example=-77.042793)
-     *         )
-     *       )
-     *     )
-     *   ),
-     *   @OA\Response(response=201, description="Lote insertado"),
-     *   @OA\Response(response=422, description="Validación")
-     * )
-     */
-    public function bulk(Request $request)
+    protected function estado(string $codigo): ?EstadoUser
     {
-        $user = $request->user();
+        return EstadoUser::query()->where('codigo', $codigo)->first();
+    }
 
-        $validated = $request->validate([
-            'items'                => ['required','array','min:1','max:100'],
-            'items.*.latitude'     => ['required','numeric','between:-90,90'],
-            'items.*.longitude'    => ['required','numeric','between:-180,180'],
+    protected function parseRecordedAt($value)
+    {
+        if (! $value) {
+            return now();
+        }
+
+        try {
+            // ISO-8601
+            return \Carbon\Carbon::parse($value);
+        } catch (\Throwable $e) {
+            return now();
+        }
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'latitude' => ['required', 'numeric'],
+            'longitude' => ['required', 'numeric'],
+            'accuracy' => ['nullable', 'numeric'],
+            'speed' => ['nullable', 'numeric'],
+            'heading' => ['nullable', 'numeric'],
+            'altitude' => ['nullable', 'numeric'],
+            'provider' => ['nullable', 'string', 'max:255'],
+            'recorded_at' => ['nullable'],
         ]);
 
-        $now  = now();
-        $rows = collect($validated['items'])->map(function ($it) use ($user, $now) {
+        /** @var Usuario $user */
+        $user = $request->user();
+
+        // Si no existe perfil visitador -> 403 (evitamos crear basura)
+        $visitador = $this->resolveVisitador($user);
+
+        $now = now();
+        $recordedAt = $this->parseRecordedAt($data['recorded_at'] ?? null);
+
+        return DB::transaction(function () use ($visitador, $data, $recordedAt, $now) {
+            // Auto-ON + auto-jornada para compatibilidad con el tracking antiguo:
+            $estadoOn = $this->estado('ON');
+            if ($estadoOn && $visitador->estado_user_id !== $estadoOn->id) {
+                $visitador->estado_user_id = $estadoOn->id;
+
+                // Jornada de hoy
+                $jornada = Jornada::query()->firstOrCreate(
+                    ['visitador_medico_id' => $visitador->id, 'fecha' => $now->toDateString()],
+                    ['inicio_jornada' => $now, 'estado' => 'abierta']
+                );
+
+                VisitadorEstadoTracking::create([
+                    'visitador_medico_id' => $visitador->id,
+                    'jornada_id' => $jornada->id,
+                    'estado_user_id' => $estadoOn->id,
+                    'tipo_marcado' => $jornada->wasRecentlyCreated ? 'inicio' : 'reanudar',
+                    'fuente' => 'sistema',
+                    'marcado_en' => $now,
+                    'nota' => 'Auto-ON por envío de ubicación',
+                ]);
+            }
+
+            $visitador->last_ping_at = $now;
+            $visitador->save();
+
+            $jornadaId = Jornada::query()
+                ->where('visitador_medico_id', $visitador->id)
+                ->where('fecha', $now->toDateString())
+                ->where('estado', 'abierta')
+                ->value('id');
+
+            $location = Location::create([
+                'visitador_medico_id' => $visitador->id,
+                'jornada_id' => $jornadaId,
+                'latitude' => $data['latitude'],
+                'longitude' => $data['longitude'],
+                'accuracy' => $data['accuracy'] ?? null,
+                'speed' => $data['speed'] ?? null,
+                'heading' => $data['heading'] ?? null,
+                'altitude' => $data['altitude'] ?? null,
+                'provider' => $data['provider'] ?? null,
+                'recorded_at' => $recordedAt,
+            ]);
+
+            // Upsert last_location
+            $last = LastLocation::query()->updateOrCreate(
+                ['visitador_medico_id' => $visitador->id],
+                [
+                    'latitude' => $data['latitude'],
+                    'longitude' => $data['longitude'],
+                    'recorded_at' => $recordedAt,
+                ]
+            );
+
+            return response()->json([
+                'id' => $location->id,
+                'saved' => true,
+                'last_location_updated' => (bool) $last,
+                'visitador_medico_id' => $visitador->id,
+                'jornada_id' => $jornadaId,
+            ], 201);
+        });
+    }
+
+    public function bulk(Request $request)
+    {
+        // Compatibilidad con Flutter legado:
+        // - antes enviaba { items: [...] }
+        // - ahora soportamos { locations: [...] } y { items: [...] }
+        $payload = $request->validate([
+            'locations' => ['required_without:items', 'array', 'min:1'],
+            'locations.*.latitude' => ['required_with:locations', 'numeric'],
+            'locations.*.longitude' => ['required_with:locations', 'numeric'],
+            'locations.*.accuracy' => ['nullable', 'numeric'],
+            'locations.*.speed' => ['nullable', 'numeric'],
+            'locations.*.heading' => ['nullable', 'numeric'],
+            'locations.*.altitude' => ['nullable', 'numeric'],
+            'locations.*.provider' => ['nullable', 'string', 'max:255'],
+            'locations.*.recorded_at' => ['nullable'],
+
+            'items' => ['required_without:locations', 'array', 'min:1'],
+            'items.*.latitude' => ['required_with:items', 'numeric'],
+            'items.*.longitude' => ['required_with:items', 'numeric'],
+            'items.*.accuracy' => ['nullable', 'numeric'],
+            'items.*.speed' => ['nullable', 'numeric'],
+            'items.*.heading' => ['nullable', 'numeric'],
+            'items.*.altitude' => ['nullable', 'numeric'],
+            'items.*.provider' => ['nullable', 'string', 'max:255'],
+            'items.*.recorded_at' => ['nullable'],
+        ]);
+
+        /** @var Usuario $user */
+        $user = $request->user();
+        $visitador = $this->resolveVisitador($user);
+
+        $now = now();
+
+        return DB::transaction(function () use ($payload, $visitador, $now) {
+            // Auto-ON + auto-jornada (igual que store)
+            $estadoOn = $this->estado('ON');
+            $jornadaId = Jornada::query()
+                ->where('visitador_medico_id', $visitador->id)
+                ->where('fecha', $now->toDateString())
+                ->where('estado', 'abierta')
+                ->value('id');
+
+            if (! $jornadaId) {
+                $jornada = Jornada::query()->create([
+                    'visitador_medico_id' => $visitador->id,
+                    'fecha' => $now->toDateString(),
+                    'inicio_jornada' => $now,
+                    'estado' => 'abierta',
+                ]);
+                $jornadaId = $jornada->id;
+
+                if ($estadoOn && $visitador->estado_user_id !== $estadoOn->id) {
+                    $visitador->estado_user_id = $estadoOn->id;
+
+                    VisitadorEstadoTracking::create([
+                        'visitador_medico_id' => $visitador->id,
+                        'jornada_id' => $jornadaId,
+                        'estado_user_id' => $estadoOn->id,
+                        'tipo_marcado' => 'inicio',
+                        'fuente' => 'sistema',
+                        'marcado_en' => $now,
+                        'nota' => 'Auto-ON por envío bulk',
+                    ]);
+                }
+            }
+
+            $visitador->last_ping_at = $now;
+            $visitador->save();
+
+            $rows = [];
+            $lastItem = null;
+
+            $items = $payload['locations'] ?? $payload['items'] ?? [];
+
+            foreach ($items as $item) {
+                $recordedAt = $this->parseRecordedAt($item['recorded_at'] ?? null);
+
+                $rows[] = [
+                    'visitador_medico_id' => $visitador->id,
+                    'jornada_id' => $jornadaId,
+                    'latitude' => $item['latitude'],
+                    'longitude' => $item['longitude'],
+                    'accuracy' => $item['accuracy'] ?? null,
+                    'speed' => $item['speed'] ?? null,
+                    'heading' => $item['heading'] ?? null,
+                    'altitude' => $item['altitude'] ?? null,
+                    'provider' => $item['provider'] ?? null,
+                    'recorded_at' => $recordedAt,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                $lastItem = [
+                    'latitude' => $item['latitude'],
+                    'longitude' => $item['longitude'],
+                    'recorded_at' => $recordedAt,
+                ];
+            }
+
+            Location::query()->insert($rows);
+
+            if ($lastItem) {
+                LastLocation::query()->updateOrCreate(
+                    ['visitador_medico_id' => $visitador->id],
+                    $lastItem
+                );
+            }
+
+            return response()->json([
+                // Flutter espera este formato:
+                'message' => 'Ubicaciones registradas',
+                'inserted' => count($rows),
+                'last_location_updated' => (bool) $lastItem,
+            ], 201);
+        });
+    }
+
+    public function myLast(Request $request)
+    {
+        /** @var Usuario $user */
+        $user = $request->user();
+        $visitador = $this->resolveVisitador($user);
+
+        $row = LastLocation::query()
+            ->where('visitador_medico_id', $visitador->id)
+            ->first();
+
+        $capturedAt = optional($row?->recorded_at)->toISOString();
+
+        return response()->json([
+            'visitador_medico_id' => $visitador->id,
+            'latitude' => $row?->latitude,
+            'longitude' => $row?->longitude,
+            // compat con Flutter (LocationResult)
+            'captured_at' => $capturedAt,
+            // compat adicional
+            'recorded_at' => $capturedAt,
+            'updated_at' => optional($row?->updated_at)->toISOString(),
+        ], 200);
+    }
+
+    protected function resolveVisitadorFromParam(int $id): VisitadorMedico
+    {
+        // 1) intenta como visitador_medico_id
+        $visitador = VisitadorMedico::query()->find($id);
+        if ($visitador) {
+            return $visitador;
+        }
+
+        // 2) fallback: intenta como user_id (compat)
+        $user = Usuario::query()->findOrFail($id);
+
+        return VisitadorMedico::query()
+            ->where('persona_id', $user->persona_id)
+            ->firstOrFail();
+    }
+
+    public function userLast(Request $request, int $id)
+    {
+        $visitador = $this->resolveVisitadorFromParam($id);
+
+        $row = LastLocation::query()
+            ->where('visitador_medico_id', $visitador->id)
+            ->first();
+
+        $capturedAt = optional($row?->recorded_at)->toISOString();
+
+        return response()->json([
+            'visitador_medico_id' => $visitador->id,
+            'latitude' => $row?->latitude,
+            'longitude' => $row?->longitude,
+            'captured_at' => $capturedAt,
+            'recorded_at' => $capturedAt,
+            'updated_at' => optional($row?->updated_at)->toISOString(),
+        ], 200);
+    }
+
+    public function userLocations(Request $request, int $id)
+    {
+        $visitador = $this->resolveVisitadorFromParam($id);
+
+        $perPage = (int) $request->query('per_page', 100);
+        $perPage = max(1, min($perPage, 500));
+
+        $from = $request->query('from');
+        $to = $request->query('to');
+
+        $query = Location::query()
+            ->where('visitador_medico_id', $visitador->id)
+            ->orderByDesc('recorded_at');
+
+        if ($from) {
+            $query->whereDate('recorded_at', '>=', $from);
+        }
+        if ($to) {
+            $query->whereDate('recorded_at', '<=', $to);
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        // Transformamos items para que coincidan con el modelo Flutter (LocationResult)
+        $paginator->getCollection()->transform(function (Location $loc) {
+            $capturedAt = optional($loc->recorded_at)->toISOString();
+
             return [
-                'user_id'    => $user->id,
-                'latitude'   => $it['latitude'],
-                'longitude'  => $it['longitude'],
-                'created_at' => $now,
-                'updated_at' => $now,
+                'latitude' => $loc->latitude !== null ? (float) $loc->latitude : null,
+                'longitude' => $loc->longitude !== null ? (float) $loc->longitude : null,
+                'captured_at' => $capturedAt,
+                'updated_at' => optional($loc->updated_at)->toISOString(),
             ];
         });
 
-        DB::transaction(function () use ($rows, $user) {
-            // Insertar en histórico
-            \App\Models\Location::insert($rows->all());
-
-            // Tomamos el ÚLTIMO del array como el más reciente (hasta añadir captured_at)
-            $latest = $rows->last();
-
-            \App\Models\LastLocation::updateOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'latitude'  => $latest['latitude'],
-                    'longitude' => $latest['longitude'],
-                    'updated_at'=> now(),
-                ]
-            );
-        });
-
-        return response()->json([
-            'message'                => 'Lecturas insertadas',
-            'inserted'               => $rows->count(),
-            'last_location_updated'  => true,
-        ], 201);
+        return response()->json($paginator, 200);
     }
 
-    /**
-     * @OA\Get(
-     *   path="/me/last-location",
-     *   tags={"Locations"},
-     *   summary="Última ubicación del usuario autenticado",
-     *   security={{"sanctum":{}}},
-     *   @OA\Response(
-     *     response=200,
-     *     description="OK"
-     *   ),
-     *   @OA\Response(response=404, description="No data")
-     * )
-     */
-    public function myLast(Request $request)
+    public function lastAll(Request $request)
     {
-        $last = \App\Models\LastLocation::where('user_id', $request->user()->id)->first();
+        $rows = LastLocation::query()
+            ->join('visitadores_medicos as vm', 'vm.id', '=', 'last_locations.visitador_medico_id')
+            ->join('persona as p', 'p.id', '=', 'vm.persona_id')
+            ->join('users as u', 'u.persona_id', '=', 'p.id')
+            ->leftJoin('estado_user as eu', 'eu.id', '=', 'vm.estado_user_id')
+            ->leftJoin('sucursales as s', 's.id', '=', 'vm.sucursal_id')
+            ->select([
+                'u.id as user_id',
+                'vm.id as visitador_medico_id',
+                'p.nombre',
+                'p.apellido_pat',
+                'p.apellido_mat',
+                'eu.codigo as estado',
+                's.nombre as sucursal',
+                'last_locations.latitude',
+                'last_locations.longitude',
+                'last_locations.recorded_at',
+                'last_locations.updated_at',
+                'vm.last_ping_at',
+            ])
+            ->orderByDesc('last_locations.updated_at')
+            ->get()
+            ->map(function ($r) {
+                $nombre = trim(implode(' ', array_filter([$r->nombre, $r->apellido_pat, $r->apellido_mat])));
 
-        if (!$last) {
-            return response()->json(['message' => 'No data'], 404);
-        }
-
-        // Mientras no exista 'captured_at', devolvemos updated_at como captured_at
-        $capturedAt = $last->captured_at ?? $last->updated_at;
-
-        return response()->json([
-            'latitude'    => (float) $last->latitude,
-            'longitude'   => (float) $last->longitude,
-            'captured_at' => $capturedAt?->toISOString(),
-            'updated_at'  => $last->updated_at?->toISOString(),
-        ]);
-    }
-
-    /**
-     * @OA\Get(
-     *   path="/users/{id}/last-location",
-     *   tags={"Locations"},
-     *   summary="Última ubicación por usuario (para panel web)",
-     *   security={{"sanctum":{}}},
-     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1)),
-     *   @OA\Response(response=200, description="OK"),
-     *   @OA\Response(response=404, description="No data"),
-     *   @OA\Response(response=422, description="Validación"),
-     *   @OA\Response(response=500, description="Error interno")
-     * )
-     */
-    public function userLast(Request $request, $id)
-    {
-        // Para respuestas más verbosas solo en desarrollo
-        $debug = (bool) config('app.debug');
-
-        try {
-            // 1) Validar el parámetro de ruta
-            $validator = Validator::make(
-                ['id' => $id],
-                ['id' => ['required','integer','min:1','exists:users,id']]
-            );
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Parámetro inválido',
-                    'errors'  => $validator->errors(),
-                ], 422);
-            }
-
-            // 2) Buscar última ubicación
-            $last = \App\Models\LastLocation::where('user_id', (int)$id)->first();
-
-            if (!$last) {
-                return response()->json(['message' => 'No data'], 404);
-            }
-
-            // Mientras no exista 'captured_at' en BD, usamos updated_at
-            $capturedAt = $last->captured_at ?? $last->updated_at;
-
-            return response()->json([
-                'latitude'    => (float) $last->latitude,
-                'longitude'   => (float) $last->longitude,
-                'captured_at' => optional($capturedAt)->toISOString(),
-                'updated_at'  => optional($last->updated_at)->toISOString(),
-            ], 200);
-
-        } catch (QueryException $e) {
-            // Errores de base de datos
-            $payload = ['message' => 'Error de base de datos'];
-            if ($debug) {
-                $payload['error']   = $e->getMessage();
-                $payload['sql']     = $e->getSql();
-                $payload['bindings']= $e->getBindings();
-            }
-            return response()->json($payload, 500);
-
-        } catch (\Throwable $e) {
-            // Cualquier otro error inesperado
-            $payload = ['message' => 'Error interno del servidor'];
-            if ($debug) {
-                $payload['error'] = $e->getMessage();
-                $payload['type']  = get_class($e);
-            }
-            return response()->json($payload, 500);
-        }
-    }
-
-    /**
-     * @OA\Get(
-     *   path="/users/{id}/locations",
-     *   tags={"Locations"},
-     *   summary="Histórico de ubicaciones paginado",
-     *   security={{"sanctum":{}}},
-     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1)),
-     *   @OA\Parameter(name="from", in="query", @OA\Schema(type="string", format="date-time")),
-     *   @OA\Parameter(name="to", in="query", @OA\Schema(type="string", format="date-time")),
-     *   @OA\Parameter(name="per_page", in="query", @OA\Schema(type="integer", minimum=1, maximum=100)),
-     *   @OA\Response(response=200, description="OK"),
-     *   @OA\Response(response=401, description="Unauthenticated"),
-     *   @OA\Response(response=422, description="Validación"),
-     *   @OA\Response(response=500, description="Error interno")
-     * )
-     */
-    public function userLocations(Request $request, $id)
-    {
-        $debug = (bool) config('app.debug');
-
-        try {
-            if (!$request->user()) {
-                return response()->json(['message' => 'Unauthenticated'], 401);
-            }
-
-            $validator = Validator::make(
-                [
-                    'id'       => $id,
-                    'from'     => $request->query('from'),
-                    'to'       => $request->query('to'),
-                    'per_page' => $request->query('per_page'),
-                ],
-                [
-                    'id'       => ['required','integer','min:1','exists:users,id'],
-                    'from'     => ['nullable','date'],
-                    'to'       => ['nullable','date','after_or_equal:from'],
-                    'per_page' => ['nullable','integer','min:1','max:100'],
-                ]
-            );
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Parámetros inválidos',
-                    'errors'  => $validator->errors(),
-                ], 422);
-            }
-
-            $query = \App\Models\Location::where('user_id', (int) $id);
-
-            // Normalización de fechas:
-            // - Si vienen sin hora, startOfDay/endOfDay cubren el día completo
-            // - Si vienen con hora, respetamos la hora precisa
-            $fromParam = $request->query('from');
-            $toParam   = $request->query('to');
-
-            $from = $fromParam ? Carbon::parse($fromParam) : null;
-            $to   = $toParam   ? Carbon::parse($toParam)   : null;
-
-            // Detecta si el string es solo fecha (YYYY-MM-DD) para aplicar día completo
-            $isDateOnly = fn($s) => is_string($s) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $s);
-
-            if ($from && $isDateOnly($fromParam)) {
-                $from = $from->startOfDay();
-            }
-            if ($to && $isDateOnly($toParam)) {
-                // Opción A (inclusivo): fin de día
-                $to = $to->endOfDay();
-
-                // Opción B (exclusivo, alternativa recomendada para grandes volúmenes):
-                // $to = $to->addDay()->startOfDay();
-                // y abajo usar < $to en lugar de <=
-            }
-
-            if ($from && $to) {
-                $query->whereBetween('created_at', [$from, $to]); // inclusivo
-                // Para la opción B:
-                // $query->where('created_at', '>=', $from)
-                //       ->where('created_at', '<',  $to);
-            } elseif ($from) {
-                $query->where('created_at', '>=', $from);
-            } elseif ($to) {
-                $query->where('created_at', '<=', $to); // o '<' si aplicaste opción B
-            }
-
-            $perPage   = (int) ($request->query('per_page', 15));
-            $perPage   = max(1, min(100, $perPage));
-
-            $paginator = $query->orderByDesc('created_at')->paginate($perPage);
-
-            $paginator->getCollection()->transform(function ($loc) {
                 return [
-                    'latitude'    => (float) $loc->latitude,
-                    'longitude'   => (float) $loc->longitude,
-                    'captured_at' => optional($loc->created_at)->toISOString(),
+                    // Flutter espera user_id
+                    'user_id' => (int) $r->user_id,
+                    'visitador_medico_id' => (int) $r->visitador_medico_id,
+                    'name' => $nombre,
+                    'estado' => (string) ($r->estado ?? ''),
+                    'sucursal' => (string) ($r->sucursal ?? ''),
+                    'latitude' => $r->latitude !== null ? (float) $r->latitude : null,
+                    'longitude' => $r->longitude !== null ? (float) $r->longitude : null,
+                    // Flutter usa updated_at (y NO lee recorded_at), pero lo dejamos por si acaso
+                    'recorded_at' => optional($r->recorded_at)->toISOString(),
+                    'updated_at' => optional($r->updated_at)->toISOString(),
+                    'last_ping_at' => optional($r->last_ping_at)->toISOString(),
                 ];
             });
 
-            return response()->json($paginator, 200);
-
-        } catch (QueryException $e) {
-            $payload = ['message' => 'Error de base de datos'];
-            if ($debug) {
-                $payload['error']    = $e->getMessage();
-                $payload['sql']      = $e->getSql();
-                $payload['bindings'] = $e->getBindings();
-            }
-            return response()->json($payload, 500);
-
-        } catch (\Throwable $e) {
-            $payload = ['message' => 'Error interno del servidor'];
-            if ($debug) {
-                $payload['error'] = $e->getMessage();
-                $payload['type']  = get_class($e);
-            }
-            return response()->json($payload, 500);
-        }
-    }
-
-    /**
-     * @OA\Get(
-     *   path="/locations/last",
-     *   tags={"Locations"},
-     *   summary="Última ubicación de todos los usuarios (para dashboard tiempo real)",
-     *   security={{"sanctum":{}}},
-     *   @OA\Response(response=200, description="OK"),
-     *   @OA\Response(response=401, description="Unauthenticated"),
-     *   @OA\Response(response=500, description="Error interno")
-     * )
-     */
-    public function lastAll(Request $request)
-    {
-        $debug = (bool) config('app.debug');
-
-        try {
-            // Cinturón y tirantes: si por alguna razón no pasó el middleware
-            if (!$request->user()) {
-                return response()->json(['message' => 'Unauthenticated'], 401);
-            }
-
-            // Consideramos “activos” a quienes tengan registro en last_locations
-            $rows = \App\Models\LastLocation::query()
-                ->join('users', 'users.id', '=', 'last_locations.user_id')
-                ->select(
-                    'last_locations.user_id',
-                    'users.name',
-                    'last_locations.latitude',
-                    'last_locations.longitude',
-                    'last_locations.updated_at'
-                )
-                ->orderByDesc('last_locations.updated_at')
-                ->get()
-                ->map(function ($r) {
-                    return [
-                        'user_id'   => (int) $r->user_id,
-                        'name'      => (string) $r->name,
-                        'latitude'  => (float) $r->latitude,
-                        'longitude' => (float) $r->longitude,
-                        'updated_at'=> optional($r->updated_at)->toISOString(),
-                    ];
-                });
-
-            return response()->json($rows, 200);
-
-        } catch (\Illuminate\Database\QueryException $e) {
-            $payload = ['message' => 'Error de base de datos'];
-            if ($debug) {
-                $payload['error'] = $e->getMessage();
-                $payload['sql']   = $e->getSql();
-            }
-            return response()->json($payload, 500);
-
-        } catch (\Throwable $e) {
-            $payload = ['message' => 'Error interno del servidor'];
-            if ($debug) {
-                $payload['error'] = $e->getMessage();
-                $payload['type']  = get_class($e);
-            }
-            return response()->json($payload, 500);
-        }
+        return response()->json($rows, 200);
     }
 }
